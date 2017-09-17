@@ -152,6 +152,8 @@ typedef enum {
 	ZIG_ZAG,
 	MOVE,
 	STOP,
+	testS,
+	testE,
 	DONE
 } State_t;
 State_t state = SYNC_CONTROLLER;
@@ -194,6 +196,7 @@ int portsval = 0;
 
 #define max(a, b) (a > b ? a : b)
 #define ms_2_count(ms) (ms / ECHOES / (max(POLLING_MS, 8) / 8 * 8))
+#define is_black(x, y) (pgm_read_byte(&(image_data[((x) / 8) + ((y) * 40)])) & 1 << ((x) % 8))
 
 void complete_zig_zag_pattern(USB_JoystickReport_Input_t *const ReportData)
 {
@@ -214,25 +217,76 @@ void complete_zig_zag_pattern(USB_JoystickReport_Input_t *const ReportData)
 	// to avoid the acceleration triggered by two consecutive moves done in the same
 	// direction. This pattern pass on the same pixel 3 times (N-2, N and N+1), but
 	// is the easiest to check that I found.
-	uint8_t move;
+	uint8_t move_direction;
+	int xdelta;
 
 	if (ypos % 4 < 2)
-		move = HAT_RIGHT;
+	{
+		move_direction = HAT_RIGHT;
+		xdelta = 1;
+	}
 	else
-		move = HAT_LEFT;
+	{
+		move_direction = HAT_LEFT;
+		xdelta = -1;
+	}
 
 	if (command_count < 642)
 	{
+// #define OLD
+#ifdef OLD
 		if (command_count % 2 == 1)
-			ReportData->HAT = move;
+			ReportData->HAT = move_direction;
 		else if (command_count % 4 == 0)
 			ReportData->HAT = HAT_BOTTOM;
 		else
 			ReportData->HAT = HAT_TOP;
+		if (command_count == 639 || command_count == 641)
+			ReportData->HAT = HAT_BOTTOM;
 		if (command_count == 640)
 			ReportData->HAT = HAT_CENTER;
-		else if (command_count == 639 || command_count == 641)
-			ReportData->HAT = HAT_BOTTOM;
+#else
+		if (command_count % 2 == 1)
+		{
+			if (command_count == 639 || command_count == 641)
+				ReportData->HAT = HAT_BOTTOM;
+			else
+				ReportData->HAT = move_direction;
+			if (command_count == 637 && ypos % 2 == 0)
+				command_count++;
+		}
+		else if (command_count % 4 == 0)
+		{
+			if (command_count == 640)
+			{
+				ReportData->HAT = HAT_CENTER;
+			}
+			else if (ypos % 2 == 1)
+			{
+				ReportData->HAT = HAT_TOP;
+				command_count++;
+			}
+			else if (is_black(xpos, ypos + 1) || is_black(xpos + xdelta, ypos + 1))
+				ReportData->HAT = HAT_BOTTOM;
+		}
+		else
+		{
+			if (command_count == 638)
+			{
+				if (is_black(xpos, ypos - 1))
+					ReportData->HAT = HAT_TOP;
+				else
+					command_count += 2;
+			}
+			else if (ypos % 2 == 0)
+			{
+				ReportData->HAT = HAT_BOTTOM;
+				command_count++;
+			}
+			else if (is_black(xpos, ypos - 1) || is_black(xpos + xdelta, ypos - 1))
+				ReportData->HAT = HAT_TOP;
+		}
+#endif
 		command_count++;
 		return;
 	}
@@ -302,6 +356,7 @@ void GetNextReport(USB_JoystickReport_Input_t *const ReportData)
 			ypos = 0;
 #if defined(ZIG_ZAG_PRINTING)
 			state = ZIG_ZAG;
+			// state = testS;
 #else
 			state = STOP;
 #endif
@@ -336,6 +391,20 @@ void GetNextReport(USB_JoystickReport_Input_t *const ReportData)
 		if (ypos > 119)
 			state = DONE;
 		break;
+	// case testS:
+	// 	ReportData->HAT = HAT_RIGHT;
+	// 	// ReportData->LX = STICK_MAX;
+	// 	command_count++;
+	// 	if (command_count == 6) // 6 == 3 or 2 pixel :-/... 
+	// 	{
+	// 		command_count = 0;
+	// 		state = testS;			
+	// 	}
+	// 	break;
+	// case testE:
+	// 	ReportData->Button |= SWITCH_A;
+	// 	state = DONE;
+	// 	break;
 	case DONE:
 #ifdef ALERT_WHEN_DONE
 		portsval = ~portsval;
@@ -359,7 +428,7 @@ void GetNextReport(USB_JoystickReport_Input_t *const ReportData)
 			ypos++;
 
 		// Inking (the printing patterns above will not move outside the canvas... is not necessary to test them)
-		if (pgm_read_byte(&(image_data[(xpos / 8) + (ypos * 40)])) & 1 << (xpos % 8))
+		if (is_black(xpos, ypos))
 			ReportData->Button |= SWITCH_A;
 	}
 
