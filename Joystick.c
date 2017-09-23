@@ -28,6 +28,42 @@ these buttons for our use.
 
 extern const uint8_t image_data[0x12c1] PROGMEM;
 
+volatile uint8_t overflows = 0;
+volatile uint8_t ms_counter = 0;
+
+void timer0_init(void)
+{
+	TCCR0A |= (1 << CS01);	// set up timer with a prescaler equals to 64 (2 Mhz)
+	TCNT0 = 0;				// initialize the counter
+	TIMSK0 |= (1 << TOIE0);	// enable the overflow interrupt
+//	sei();					// enable global interrupts
+	overflows = 0;			// initialize the overflow counter variable
+}
+
+void timer0_update(void)
+{
+	if (overflows >= 7) // 892,5 us
+	{
+		if (TCNT0 >= 215) // the remaining 107,5 us
+		{
+			TCNT0 = 0;
+			overflows = 0;
+			ms_counter++; // 1000 us
+		}
+	}
+}
+
+uint8_t read_ms(void)
+{
+	timer0_update();
+	return ms_counter;
+}
+
+ISR(TIMER0_OVF_vect)
+{
+	overflows++;			// interrupt service routine on time0 interrupts
+}
+
 // Main entry point.
 int main(void)
 {
@@ -60,12 +96,15 @@ void SetupHardware(void)
 #ifdef ALERT_WHEN_DONE
 	// Both PORTD and PORTB will be used for the optional LED flashing and buzzer.
 #warning LED and Buzzer functionality enabled. All pins on both PORTB and PORTD will toggle when printing is done.
-	DDRD = 0xFF; //Teensy uses PORTD
+	DDRD = 0xFF; // Teensy uses PORTD
 	PORTD = 0x0;
-	//We'll just flash all pins on both ports since the UNO R3
-	DDRB = 0xFF; //uses PORTB. Micro can use either or, but both give us 2 LEDs
-	PORTB = 0x0; //The ATmega328P on the UNO will be resetting, so unplug it?
+	// We'll just flash all pins on both ports since the UNO R3
+	DDRB = 0xFF; // uses PORTB. Micro can use either or, but both give us 2 LEDs
+	PORTB = 0x0; // The ATmega328P on the UNO will be resetting, so unplug it?
 #endif
+
+	// Initialize the ms timer
+	timer0_init();
 
 	// The USB stack should be initialized last.
 	USB_Init();
@@ -152,14 +191,9 @@ typedef enum {
 	ZIG_ZAG,
 	MOVE,
 	STOP,
-	testS,
-	testE,
 	DONE
 } State_t;
 State_t state = SYNC_CONTROLLER;
-
-// Comment SYNC_TO_30_FPS out for a safer timing when ZIG_ZAG_PRINTING is enabled
-#define SYNC_TO_30_FPS
 
 // Repeat ECHOES times the last sent report.
 //
@@ -169,8 +203,8 @@ State_t state = SYNC_CONTROLLER;
 //   it looks to be 8 ms).
 // - The Switch screen refresh rate (it looks that anything that would update the screen
 //   at more than 30 fps triggers pixel skipping).
-#if defined(ZIG_ZAG_PRINTING)
-	#if defined(SYNC_TO_30_FPS)
+#ifdef ZIG_ZAG_PRINTING
+	#ifdef SYNC_TO_30_FPS
 		// In this case we will send 641 moves and 1 stop every 2 lines, using 4 reports for
 		// each send (done in 32 ms). We will inject an additional report every 6 commands, to
 		// align them to 6 video frames (lasting 200 ms).
@@ -198,6 +232,49 @@ int portsval = 0;
 #define ms_2_count(ms) (ms / ECHOES / (max(POLLING_MS, 8) / 8 * 8))
 #define is_black(x, y) (pgm_read_byte(&(image_data[((x) / 8) + ((y) * 40)])) & 1 << ((x) % 8))
 
+void skip_blanks(USB_JoystickReport_Input_t *const ReportData)
+{
+	// This function skip blanks using the analog stick, adjusting the commands count and the
+	// dot position.
+	int xdelta, ydelta;
+	static int stops = 0;
+	static int balance = 1;
+
+	if (stops)
+	{
+		ReportData->HAT = HAT_CENTER;
+		command_count--;
+		stops--;
+		return;
+	}
+
+	if (command_count > 631)
+		return;
+
+	xdelta = (ypos % 4 < 2) ? 1 : -1;
+	if (is_black(xpos,              ypos) ||
+		is_black(xpos + xdelta,     ypos) ||
+		is_black(xpos + xdelta * 2, ypos) ||
+		is_black(xpos + xdelta * 3, ypos) ||
+		is_black(xpos + xdelta * 4, ypos))
+		return;
+	ydelta = (ypos % 2 == 0) ? 1 : -1;
+	if (is_black(xpos,              ypos + ydelta) ||
+		is_black(xpos + xdelta,     ypos + ydelta) ||
+		is_black(xpos + xdelta * 2, ypos + ydelta) ||
+		is_black(xpos + xdelta * 3, ypos + ydelta) ||
+		is_black(xpos + xdelta * 4, ypos + ydelta))
+		return;
+
+	ReportData->HAT = HAT_CENTER;
+	ReportData->LX = (ypos % 4 < 2) ? STICK_MAX : STICK_MIN; // when SYNC_TO_30_FPS is enabled, this consistently move the dot by 4 pixels
+	ReportData->LY = STICK_CENTER + balance; // to do a move, both the analog axis must be different from STICK_CENTER
+	command_count += 7;
+	xpos += (ypos % 4 < 2) ? 4 : -4;
+	balance *= -1; // to balance back the next move (without this the bias will slowly move the dot over the vertical axis)
+	stops = 1;
+}
+
 void complete_zig_zag_pattern(USB_JoystickReport_Input_t *const ReportData)
 {
 	// This function move the dot, switching between two consecutive lines, following
@@ -217,88 +294,30 @@ void complete_zig_zag_pattern(USB_JoystickReport_Input_t *const ReportData)
 	// to avoid the acceleration triggered by two consecutive moves done in the same
 	// direction. This pattern pass on the same pixel 3 times (N-2, N and N+1), but
 	// is the easiest to check that I found.
-	uint8_t move_direction;
-	int xdelta;
-
-	if (ypos % 4 < 2)
-	{
-		move_direction = HAT_RIGHT;
-		xdelta = 1;
-	}
+	if (command_count == 643)
+		command_count = 0;
+	if (command_count % 2 == 1)
+		ReportData->HAT = (ypos % 4 < 2) ? HAT_RIGHT : HAT_LEFT;
+	else if (command_count % 4 == 0)
+		ReportData->HAT = HAT_BOTTOM;
 	else
-	{
-		move_direction = HAT_LEFT;
-		xdelta = -1;
-	}
+		ReportData->HAT = HAT_TOP;
+	if (command_count == 639 || command_count == 641)
+		ReportData->HAT = HAT_BOTTOM;
+	if (command_count == 640 || command_count == 642)
+		ReportData->HAT = HAT_CENTER;
+	command_count++;
 
-	if (command_count < 642)
-	{
-// #define OLD
-#ifdef OLD
-		if (command_count % 2 == 1)
-			ReportData->HAT = move_direction;
-		else if (command_count % 4 == 0)
-			ReportData->HAT = HAT_BOTTOM;
-		else
-			ReportData->HAT = HAT_TOP;
-		if (command_count == 639 || command_count == 641)
-			ReportData->HAT = HAT_BOTTOM;
-		if (command_count == 640)
-			ReportData->HAT = HAT_CENTER;
-#else
-		if (command_count % 2 == 1)
-		{
-			if (command_count == 639 || command_count == 641)
-				ReportData->HAT = HAT_BOTTOM;
-			else
-				ReportData->HAT = move_direction;
-			if (command_count == 637 && ypos % 2 == 0)
-				command_count++;
-		}
-		else if (command_count % 4 == 0)
-		{
-			if (command_count == 640)
-			{
-				ReportData->HAT = HAT_CENTER;
-			}
-			else if (ypos % 2 == 1)
-			{
-				ReportData->HAT = HAT_TOP;
-				command_count++;
-			}
-			else if (is_black(xpos, ypos + 1) || is_black(xpos + xdelta, ypos + 1))
-				ReportData->HAT = HAT_BOTTOM;
-		}
-		else
-		{
-			if (command_count == 638)
-			{
-				if (is_black(xpos, ypos - 1))
-					ReportData->HAT = HAT_TOP;
-				else
-					command_count += 2;
-			}
-			else if (ypos % 2 == 0)
-			{
-				ReportData->HAT = HAT_BOTTOM;
-				command_count++;
-			}
-			else if (is_black(xpos, ypos - 1) || is_black(xpos + xdelta, ypos - 1))
-				ReportData->HAT = HAT_TOP;
-		}
+#ifdef SYNC_TO_30_FPS
+	// Skipping works only if the time sync is perfect. SYNC_TO_30_FPS sync only the frequency, not the phase :-(...
+	skip_blanks(ReportData);
 #endif
-		command_count++;
-		return;
-	}
-
-	command_count = 0;
 	return;
 }
 
 // Prepare the next report for the host
 void GetNextReport(USB_JoystickReport_Input_t *const ReportData)
 {
-
 	// Prepare an empty report
 	memset(ReportData, 0, sizeof(USB_JoystickReport_Input_t));
 	ReportData->LX = STICK_CENTER;
@@ -354,9 +373,8 @@ void GetNextReport(USB_JoystickReport_Input_t *const ReportData)
 			command_count = 0;
 			xpos = 0;
 			ypos = 0;
-#if defined(ZIG_ZAG_PRINTING)
+#ifdef ZIG_ZAG_PRINTING
 			state = ZIG_ZAG;
-			// state = testS;
 #else
 			state = STOP;
 #endif
@@ -391,20 +409,6 @@ void GetNextReport(USB_JoystickReport_Input_t *const ReportData)
 		if (ypos > 119)
 			state = DONE;
 		break;
-	// case testS:
-	// 	ReportData->HAT = HAT_RIGHT;
-	// 	// ReportData->LX = STICK_MAX;
-	// 	command_count++;
-	// 	if (command_count == 6) // 6 == 3 or 2 pixel :-/... 
-	// 	{
-	// 		command_count = 0;
-	// 		state = testS;			
-	// 	}
-	// 	break;
-	// case testE:
-	// 	ReportData->Button |= SWITCH_A;
-	// 	state = DONE;
-	// 	break;
 	case DONE:
 #ifdef ALERT_WHEN_DONE
 		portsval = ~portsval;
