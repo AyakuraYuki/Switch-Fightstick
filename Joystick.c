@@ -29,15 +29,13 @@ these buttons for our use.
 extern const uint8_t image_data[0x12c1] PROGMEM;
 
 volatile uint8_t overflows = 0;
-volatile uint8_t ms_counter = 0;
+volatile uint16_t ms_counter = 0;
 
 void timer0_init(void)
 {
 	TCCR0A |= (1 << CS01);	// set up timer with a prescaler equals to 64 (2 Mhz)
 	TCNT0 = 0;				// initialize the counter
 	TIMSK0 |= (1 << TOIE0);	// enable the overflow interrupt
-//	sei();					// enable global interrupts
-	overflows = 0;			// initialize the overflow counter variable
 }
 
 void timer0_update(void)
@@ -53,15 +51,40 @@ void timer0_update(void)
 	}
 }
 
-uint8_t read_ms(void)
+uint16_t read_ms(void)
 {
 	timer0_update();
 	return ms_counter;
 }
 
+uint16_t read_delta_ms(void)
+{
+	static bool ready = false;
+	static uint16_t last;
+	uint16_t current;
+	uint16_t delta;
+
+	current = read_ms();
+	if (ready)
+	{
+		if (current >= last)
+			delta = current - last;
+		else
+			delta = 65535 - last + current;
+	}
+	else
+	{
+		ready = true;
+		delta = 0;
+	}
+	last = current;
+
+	return delta;
+}
+
 ISR(TIMER0_OVF_vect)
 {
-	overflows++;			// interrupt service routine on time0 interrupts
+	overflows++; // interrupt service routine on time0 interrupts
 }
 
 // Main entry point.
@@ -74,6 +97,8 @@ int main(void)
 	// Once that's done, we'll enter an infinite loop.
 	for (;;)
 	{
+		// Update the timer.
+		timer0_update();
 		// We need to run our task to process and deliver data for our IN and OUT endpoints.
 		HID_Task();
 		// We also need to run the main USB management task.
@@ -96,11 +121,15 @@ void SetupHardware(void)
 #ifdef ALERT_WHEN_DONE
 	// Both PORTD and PORTB will be used for the optional LED flashing and buzzer.
 #warning LED and Buzzer functionality enabled. All pins on both PORTB and PORTD will toggle when printing is done.
-	DDRD = 0xFF; // Teensy uses PORTD
+	// The Teensy uses PORTD.
+	DDRD = 0xFF;
 	PORTD = 0x0;
-	// We'll just flash all pins on both ports since the UNO R3
-	DDRB = 0xFF; // uses PORTB. Micro can use either or, but both give us 2 LEDs
-	PORTB = 0x0; // The ATmega328P on the UNO will be resetting, so unplug it?
+	// We'll just flash all pins on both ports since the Arduino UNO R3 uses PORTB.
+	// The Arduino Micro can use either or, but both give us 2 LEDs.
+	// The ATmega328P on the Arduino UNO R3 will be resetting continuously, maybe
+	// is worth to unplug it?
+	DDRB = 0xFF;
+	PORTB = 0x0;
 #endif
 
 	// Initialize the ms timer
@@ -194,6 +223,9 @@ typedef enum {
 	DONE
 } State_t;
 State_t state = SYNC_CONTROLLER;
+
+// Sync the USB report stream to 30 fps, and enable the blanks skipping
+#define SYNC_TO_30_FPS
 
 // Repeat ECHOES times the last sent report.
 //
@@ -315,10 +347,10 @@ void complete_zig_zag_pattern(USB_JoystickReport_Input_t *const ReportData)
 	return;
 }
 
-// Prepare the next report for the host
+// Prepare the next report for the host.
 void GetNextReport(USB_JoystickReport_Input_t *const ReportData)
 {
-	// Prepare an empty report
+	// Prepare an empty report.
 	memset(ReportData, 0, sizeof(USB_JoystickReport_Input_t));
 	ReportData->LX = STICK_CENTER;
 	ReportData->LY = STICK_CENTER;
@@ -327,29 +359,30 @@ void GetNextReport(USB_JoystickReport_Input_t *const ReportData)
 	ReportData->HAT = HAT_CENTER;
 
 #if defined(ZIG_ZAG_PRINTING) && defined(SYNC_TO_30_FPS)
-	if (state == ZIG_ZAG)
+	// Inject an additional echo every 192 ms, aligning the command stream to 200 ms (equivalent to 6 video frames).
+	report_count++;
+	if (report_count == 12) // this seems be the best spot to inject the echo...
 	{
-		// Inject an additional echo every 192 ms, aligning the command stream to 200 ms (equivalent to 6 video frames)
-		report_count++;
-		if (report_count == 24) // this seems be the best spot to inject the echo...
-		{
-			memcpy(ReportData, &last_report, sizeof(USB_JoystickReport_Input_t));
+		memcpy(ReportData, &last_report, sizeof(USB_JoystickReport_Input_t));
+		if (read_delta_ms() < POLLING_MS + 1)
 			return;
-		}
-		if (report_count == 25) // reset the report count every 25 reports (200 ms)
-			report_count = 0;
 	}
+	if (report_count == 25) // reset the report count every 25 reports (200 ms)
+		report_count = 0;
 #endif
 
-	// Repeat ECHOES times the last report
+	// Repeat ECHOES times the last report.
 	if (echoes > 0)
 	{
 		memcpy(ReportData, &last_report, sizeof(USB_JoystickReport_Input_t));
 		echoes--;
-		return;
+#if defined(ZIG_ZAG_PRINTING) && defined(SYNC_TO_30_FPS)
+		if (read_delta_ms() < POLLING_MS + 1)
+#endif
+			return;
 	}
 
-	// States and moves management
+	// States and moves management.
 	switch (state)
 	{
 	case SYNC_CONTROLLER:
@@ -381,10 +414,10 @@ void GetNextReport(USB_JoystickReport_Input_t *const ReportData)
 		}
 		else
 		{
-			// Moving faster with LX/LY
+			// Moving faster with LX/LY.
 			ReportData->LX = STICK_MIN;
 			ReportData->LY = STICK_MIN;
-			// Clear the screen
+			// Clear the screen.
 			if (command_count == ms_2_count(1500) || command_count == ms_2_count(3000))
 				ReportData->Button |= SWITCH_MINUS;
 			command_count++;
@@ -421,7 +454,7 @@ void GetNextReport(USB_JoystickReport_Input_t *const ReportData)
 
 	if (state != SYNC_CONTROLLER && state != SYNC_POSITION && state != DONE)
 	{
-		// Position update (diagonal moves doesn't work since they ink two dots... is not necessary to test them)
+		// Position update (diagonal moves doesn't work since they ink two dots... is not necessary to test them).
 		if (ReportData->HAT == HAT_RIGHT)
 			xpos++;
 		else if (ReportData->HAT == HAT_LEFT)
@@ -431,12 +464,12 @@ void GetNextReport(USB_JoystickReport_Input_t *const ReportData)
 		else if (ReportData->HAT == HAT_BOTTOM)
 			ypos++;
 
-		// Inking (the printing patterns above will not move outside the canvas... is not necessary to test them)
+		// Inking (the printing patterns above will not move outside the canvas... is not necessary to test them).
 		if (is_black(xpos, ypos))
 			ReportData->Button |= SWITCH_A;
 	}
 
-	// Prepare to echo this report
+	// Prepare to echo this report.
 	memcpy(&last_report, ReportData, sizeof(USB_JoystickReport_Input_t));
 	echoes = ECHOES;
 }
