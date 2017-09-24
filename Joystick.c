@@ -361,7 +361,7 @@ void GetNextReport(USB_JoystickReport_Input_t *const ReportData)
 #if defined(ZIG_ZAG_PRINTING) && defined(SYNC_TO_30_FPS)
 	// Inject an additional echo every 192 ms, aligning the command stream to 200 ms (equivalent to 6 video frames).
 	report_count++;
-	if (report_count == 12) // this seems be the best spot to inject the echo...
+	if (report_count == 20) // this seems be the best spot to inject the echo...
 	{
 		memcpy(ReportData, &last_report, sizeof(USB_JoystickReport_Input_t));
 		if (read_delta_ms() < POLLING_MS + 1)
