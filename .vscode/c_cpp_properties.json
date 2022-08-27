@@ -1,0 +1,32 @@
+{
+    "configurations": [
+        {
+            "name": "AVR",
+            "browse": {
+                "path": [
+                    "${workspaceFolder}"
+                ],
+                "limitSymbolsToIncludedHeaders": true
+            },
+            "includePath": [
+                "/usr/local/Cellar/avr-gcc@9/9.4.0/avr/include/avr/",
+                "${workspaceFolder}/Config/",
+                "${workspaceFolder}/../LUFA/LUFA/..",
+                "${workspaceFolder}/**"
+            ],
+            "defines": [
+                "__AVR_ATmega16U2__",
+                "USE_LUFA_CONFIG_HEADER",
+                "ARCH=ARCH_AVR8",
+                "BOARD=BOARD_NONE",
+                "F_CPU=16000000UL",
+                "F_USB=16000000UL",
+                "ZIG_ZAG_PRINTING"
+            ],
+            "compilerPath": "/usr/local/bin/avr-gcc",
+            "cStandard": "c99",
+            "cppStandard": "c++11"
+        }
+    ],
+    "version": 4
+}

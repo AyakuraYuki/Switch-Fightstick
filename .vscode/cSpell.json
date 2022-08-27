@@ -1,0 +1,40 @@
+{
+    "version": "0.2",
+    "language": "en",
+    "words": [
+        "Arduino",
+        "bootloader",
+        "CSCP",
+        "DDRB",
+        "DDRD",
+        "DTYPE",
+        "EPADDR",
+        "EPSIZE",
+        "Fightstick",
+        "HORI",
+        "LEDs",
+        "LUFA",
+        "MCUSR",
+        "PINB",
+        "Pokken",
+        "PORTB",
+        "PORTD",
+        "prescale",
+        "PROGMEM",
+        "RWSTREAM",
+        "TCCR",
+        "TCNT",
+        "TIMSK",
+        "Tmega",
+        "TOIE",
+        "vect",
+        "WDRF",
+        "xdelta",
+        "xpos",
+        "ydelta",
+        "ypos"
+    ],
+    "flagWords": [
+        "hte"
+    ]
+}
