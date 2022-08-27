@@ -8,13 +8,13 @@ On June 20, 2017, Nintendo released System Update v3.0.0 for the Nintendo Switch
 
 Unlike the Wii U, which handles these controllers on a 'per-game' basis, the Switch treats the Pokken controller as if it was a Switch Pro Controller. Along with having the icon for the Pro Controller, it functions just like it in terms of using it in other games, apart from the lack of physical controls such as analog sticks, the buttons for the stick clicks, or other system buttons such as Home or Capture.
 
-### Printing Splatoon Posts
-For my own personal use, I repurposed Switch-Fightstick to output a set sequence of inputs to systematically print Splatoon posts. This works by using the smallest size pen and D-pad inputs to plot out each pixel one-by-one.
+### Printing Splatoon 3 Posts
+For my own personal use, I repurposed Switch-Fightstick to output a set sequence of inputs to systematically print Splatoon 3 posts. This works by using the smallest size pen and D-pad inputs to plot out each pixel one-by-one.
 
 #### Printing Procedure
 Just press L to select the pixel pen and plug in the controller: it will automatically sync with the console, reset the cursor position, clean the canvas and print. In case you see issues with controller conflicts while in docked mode, try using a USB-C to USB-A adapter in handheld mode. In dock mode, changes in the HDMI connection will briefly make the Switch not respond to incoming USB commands, skipping pixels in the printout. These changes may include turning off the TV, or switching the HDMI input. (Switching to the internal tuner will be OK, if this doesn't trigger a change in the HDMI input.)
 
-The printing goes from top to bottom, alternating between two lines, from left to right and viceversa (skipping small cluster of contiguous white pixels). Printing currently takes less than 21 minutes.
+The printing goes from top to bottom, alternating between two lines, from left to right and viceversa (skipping small cluster of contiguous white pixels). Printing currently takes less than 42 minutes (we had to slow down few things to make this works fine with Splatoon 3... with Splatoon 2 we reached 21 minutes).
 
 Optionally, upon completion, the Teensy's LED will begin flashing. On compatible Arduino boards, some combination of the onboard LEDs will flash. On the UNO, for instance, both TX and RX LEDs will flash, however the other LEDs will not. If this functionality is desired, issue `make with-alert` when building the firmware. All pins on both PORTB and PORTD are toggled! Beware of possible interactions with any attached peripherals, say from another project.
 
@@ -25,7 +25,7 @@ Go to the Teensy website and download/install the [Teensy Loader application](ht
 
 Next, you need to grab the LUFA library. You can download it in a zipped folder at the bottom of [this page](http://www.fourwalledcubicle.com/LUFA.php). Unzip the folder, rename it `LUFA`, and place it where you like. Then, download or clone the contents of this repository onto your computer. Next, you'll need to make sure the `LUFA_PATH` inside of the `makefile` points to the `LUFA` subdirectory inside your `LUFA` directory. My `Switch-Fightstick` directory is in the same directory as my `LUFA` directory, so I set `LUFA_PATH = ../LUFA/LUFA`.
 
-Now you should be ready to rock. Open a terminal window in the `Switch-Fightstick` directory, type `make`, and hit enter to compile. If all goes well, the printout in the terminal will let you know it finished the build! Follow the directions on flashing `Joystick.hex` onto your Teensy, which can be found page where you downloaded the Teensy Loader application.
+Now you should be ready to rock. Open a terminal window in the `Switch-Fightstick` directory, , edit the `makefile` setting `MCU = at90usb1286`, type `make`, and hit enter to compile. If all goes well, the printout in the terminal will let you know it finished the build! Follow the directions on flashing `Joystick.hex` onto your Teensy, which can be found page where you downloaded the Teensy Loader application.
 
 #### Compiling and Flashing onto the Arduino UNO R3
 You will need to set your [Arduino in DFU mode](https://www.arduino.cc/en/Hacking/DFUProgramming8U2), and flash its USB controller. (Note for Mac users - try [brew](https://brew.sh/index_it.html) to install the dfu-programmer with `brew install dfu-programmer`.) Setting an Arduino UNO R3 in DFU mode is quite easy, all you need is a jumper (the boards come with the needed pins in place). Please note that once the board is flashed, you will need to flash it back with the original firmware to make it work again as a standard Arduino. To compile this project you will need the AVR GCC Compiler and Tools. (Again for Mac users - try brew, adding the [osx-cross/avr](osx-cross/avr) repository, all you need to do is to type `brew tap osx-cross/avr` and `brew install avr-gcc`.) Next, you need to grab the LUFA library: download and install it following the steps described for the Teensy 2.0++.
@@ -33,7 +33,7 @@ You will need to set your [Arduino in DFU mode](https://www.arduino.cc/en/Hackin
 Finally, open a terminal window in the `Switch-Fightstick` directory, edit the `makefile` setting `MCU = atmega16u2`, and compile by typing `make`. Follow the [DFU mode directions](https://www.arduino.cc/en/Hacking/DFUProgramming8U2) to flash `Joystick.hex` onto your Arduino UNO R3 and you are done.
 
 #### Compiling and Flashing onto the Arduino Micro
-The Arduino Micro is more like the Teensy in that it has a single microcontroller that communicates directly over USB. Most of the steps are the same as those for the Teensy, except do not download Teensy Loader program. You will also need to edit `makefile` before issuing `make`. Change `MCU = at90usb1286` on line 15 to `MCU = atmega32u4`.
+The Arduino Micro is more like the Teensy in that it has a single microcontroller that communicates directly over USB. Most of the steps are the same as those for the Teensy, except do not download Teensy Loader program. You will also need to edit `makefile` before issuing `make`. Change `MCU = atmega16u2` to `MCU = atmega32u4`.
 
 Once finished building, start up Arduino IDE. Under `File -> Preferences`, check `Show verbose output during: upload` and pick OK. With the Arduino plugged in and properly selected under `Tools`, upload any sketch. Find the line with `avrdude` and copy the entire `avrdude` command and all options into a terminal, replacing the `.hex` file and path to the location of the `Joystick.hex` created in the previous step. Also make sure the `-P/dev/??` port is the same as what Arduino IDE is currently reporting. Now double tap the reset button on the Arduino and quickly press Enter in the terminal. This may take several tries. You may need to press Enter first and then the reset button or try various timings. Eventually, `avrdude` should report success. Store the `avrdude` command in a text file or somewhere safe since you will need it every time you want to print a new image.
 
@@ -46,18 +46,18 @@ The Arduino Leonardo is theoretically compatible, but has not been tested. It al
 #### Using your own image
 The image printed depends on `image.c` which is generated with `png2c.py` which takes a 320x120 .png image. `png2c.py` will pack the image to a linear 1bpp array. If the image is not already made up of only black and white pixels, it will be dithered.
 
-In order to run `png2c.py`, you need to [install Python](https://www.python.org/downloads/) (I use Python 3 on a Mac, install it with `brew install python3`). Also, you need to have the [Python Imaging Library](https://pillow.readthedocs.io/en/3.0.0/installation.html) installed ([install pip](https://pip.pypa.io/en/stable/installing/#do-i-need-to-install-pip) if you need to, on a Mac is installed alongside Python 3, and then run `pip3 install pillow`).
+In order to run `png2c.py`, you need to [install Python 3](https://www.python.org/downloads/) (on a Mac install it with `brew install python3`). Also, you need to have the [Python Imaging Library](https://pillow.readthedocs.io/en/3.0.0/installation.html) installed ([install pip](https://pip.pypa.io/en/stable/installing/#do-i-need-to-install-pip) if you need to, on a Mac is installed alongside Python 3, and then run `pip3 install pillow`).
 Using the supplied sample image, splatoonpattern.png:
 
 ```
-$ python png2c.py splatoonpattern.png
+$ python3 png2c.py splatoonpattern.png
 ```
 Substitute your own .png image to generate the `image.c` file necessary to print. Just make sure your image is in the `Switch-Fightstick` directory.
 
 To generate an inverted colormap of the image:
 
 ```
-$ python png2c.py -i splatoonpattern.png
+$ python3 png2c.py -i splatoonpattern.png
 ```
 
 #### What the dither?
@@ -72,13 +72,13 @@ As previously mentioned, png2c.py will dither the input image if you supply an i
 To preview the bilevel image:
 
 ```
-$ python png2c.py -p yourImage.png
+$ python3 png2c.py -p yourImage.png
 ```
 
 To save the bilevel image:
 
 ```
-$ python png2c.py -s yourImage.png
+$ python3 png2c.py -s yourImage.png
 ```
 
 ![http://imgur.com/uUOeJ7P.png](http://imgur.com/uUOeJ7P.png)
