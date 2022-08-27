@@ -13,7 +13,7 @@
 
 # Set the MCU accordingly to your device (e.g. at90usb1286 for a Teensy 2.0++, or atmega16u2 for an Arduino UNO
 # R3, or atmega32u4 for an Arduino Micro)
-MCU          = at90usb1286
+MCU          = atmega16u2
 ARCH         = AVR8
 F_CPU        = 16000000
 F_USB        = $(F_CPU)
@@ -21,8 +21,7 @@ OPTIMIZATION = s
 TARGET       = Joystick
 SRC          = $(TARGET).c Descriptors.c image.c $(LUFA_SRC_USB)
 LUFA_PATH    = ../LUFA/LUFA
-# Remove the -DZIG_ZAG_PRINTING below to compile with basic printing pattern (printing 5 m more)
-CC_FLAGS     = -DUSE_LUFA_CONFIG_HEADER -IConfig/ -DZIG_ZAG_PRINTING
+CC_FLAGS     = -DUSE_LUFA_CONFIG_HEADER -IConfig/
 LD_FLAGS     =
 
 # Default target
@@ -38,7 +37,3 @@ include $(LUFA_PATH)/Build/lufa_dfu.mk
 include $(LUFA_PATH)/Build/lufa_hid.mk
 include $(LUFA_PATH)/Build/lufa_avrdude.mk
 include $(LUFA_PATH)/Build/lufa_atprogram.mk
-
-# Target for LED/buzzer to alert when print is done
-with-alert: all
-with-alert: CC_FLAGS += -DALERT_WHEN_DONE

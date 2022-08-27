@@ -1,0 +1,34 @@
+{
+    "version": "0.1",
+    "language": "en",
+    "words": [
+        "Arduino",
+        "CSCP",
+        "DDRB",
+        "DDRD",
+        "DTYPE",
+        "EPADDR",
+        "EPSIZE",
+        "HORI",
+        "LEDs",
+        "LUFA",
+        "MCUSR",
+        "PORTB",
+        "PORTD",
+        "RWSTREAM",
+        "TCCR",
+        "TCNT",
+        "TIMSK",
+        "TOIE",
+        "Tmega",
+        "WDRF",
+        "vect",
+        "xdelta",
+        "xpos",
+        "ydelta",
+        "ypos"
+    ],
+    "flagWords": [
+        "hte"
+    ]
+}
