@@ -4,6 +4,7 @@
     "version": "2.0.0",
     "tasks": [
         {
+            // I added custom in keybindings.json ctrl+shift+b for Build, and ctrl+shift+c for Clean
             "label": "Build",
             "type": "shell",
             "command": "make",
@@ -22,6 +23,7 @@
             ]
         },
         {
+            // I added custom in keybindings.json ctrl+shift+f for Flash
             "label": "Flash",
             "type": "shell",
             "command": "dfu-programmer atmega16u2 erase; dfu-programmer atmega16u2 flash Joystick.hex; dfu-programmer atmega16u2 reset",

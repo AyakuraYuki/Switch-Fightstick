@@ -9,8 +9,8 @@
                 "limitSymbolsToIncludedHeaders": true
             },
             "includePath": [
-                "/usr/local/Cellar/avr-gcc/7.3.0/avr/include/avr",
-                "${workspaceFolder}/Config/LUFAConfig.h",
+                "/usr/local/Cellar/avr-gcc@9/9.4.0/avr/include/avr/",
+                "${workspaceFolder}/Config/",
                 "${workspaceFolder}/../LUFA/LUFA/..",
                 "${workspaceFolder}/**"
             ],

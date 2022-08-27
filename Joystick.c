@@ -360,7 +360,7 @@ void GetNextReport(USB_JoystickReport_Input_t *const ReportData)
 			if (command_count == ms_2_count(1500) || command_count == ms_2_count(3000))
 			{
 				PORTD = (~PORTD & TX_LED) | (PORTD & ~TX_LED);
-				ReportData->Button |= SWITCH_MINUS;
+				ReportData->Button |= SWITCH_LCLICK;
 			}
 			else
 			{
