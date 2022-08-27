@@ -35,15 +35,18 @@ def main(argv):
   if not (previewBilevel or saveBilevel):
     im_px = im.load()
     data = []
-    for i in range(0,120):                # iterate over the columns
-      for j in range(0,320):              # and convert 255 vals to 0 to match logic in Joystick.c and invertColormap option
+    for i in list(range(0,120)):                # iterate over the columns
+      for j in list(range(0,320)):              # and convert 255 vals to 0 to match logic in Joystick.c and invertColormap option
          data.append(0 if im_px[j,i] == 255 else 1)
 
-    str_out = "#include <stdint.h>\n#include <avr/pgmspace.h>\n\nconst uint8_t image_data[0x12c1] PROGMEM = {"
-    for i in range(0, (320*120) // 8):
+    str_out = "// Converted: " + args[0] + "\n\n"
+    str_out += "#include <stdint.h>\n"
+    str_out += "#include <avr/pgmspace.h>\n\n"
+    str_out += "const uint8_t image_data[0x12c1] PROGMEM = {"
+    for i in list(range(0, (320*120) // 8)):
        val = 0;
 
-       for j in range(0, 8):
+       for j in list(range(0, 8)):
           val |= data[(i * 8) + j] << j
 
        if (invertColormap):
