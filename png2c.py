@@ -43,7 +43,7 @@ def main(argv):
     str_out += "#include <stdint.h>\n"
     str_out += "#include <avr/pgmspace.h>\n\n"
     str_out += "const uint8_t image_data[0x12c1] PROGMEM = {"
-    for i in list(range(0, (320*120) // 8)):
+    for i in list(range(0, 4800)):
        val = 0;
 
        for j in list(range(0, 8)):
